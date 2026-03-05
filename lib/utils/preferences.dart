@@ -13,10 +13,11 @@ class PreferencesService {
     await prefs.setBool(_isLoggedKey, value);
   }
 
-  Future<void> getCredentialUser() async {
+  Future<Map<String, String>> getCredentialUser() async {
     final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('email');
-    final password = prefs.getString('password');
+    final savedEmail = prefs.getString('email');
+    final savedPassword = prefs.getString('password');
+    return {'email': savedEmail!, 'password': savedPassword!};
   }
 
   Future<void> setCredentialUser(String email, String password) async {

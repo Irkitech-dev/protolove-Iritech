@@ -13,34 +13,58 @@ class AuthService extends ChangeNotifier {
   //Variables
   bool _isLoading = false;
 
-  //Getter y setter 
+  //Getter y setter
   bool get isLoading => _isLoading;
   set isLoading(bool value) {
     _isLoading = value;
     notifyListeners();
   }
 
-  
-  Future<void> login(String email, String password) async {
+  Future<void> login(
+    String email,
+    String password,
+    BuildContext context,
+  ) async {
     try {
+      isLoading = true;
       final response = await _supabase.auth.signInWithPassword(
         email: email.trim(),
         password: password.trim(),
       );
 
       if (response.user != null) {
-        // Login exitoso
+        AppMessages.success(context, '¡Bienvenido a Protolove! 💕');
+        final appService = context.read<AppService>();
+        appService.setLoginData(email, password);
+        NavigationService().pushReplacementNamed(HomeScreen.routeName);
       }
     } on AuthException catch (e) {
-      // Manejar errores de autenticación
-      print('Error de autenticación: ${e.message}');
+      if (e.message.contains('Invalid login credentials')) {
+        AppMessages.error(
+          context,
+          'Correo o contraseña incorrectos 🔐\nInténtalo nuevamente.',
+        );
+      } else {
+        AppMessages.error(
+          context,
+          'No pudimos iniciar sesión 😕\nInténtalo más tarde.',
+        );
+      }
     } catch (e) {
-      // Manejar otros errores
-      print('Error inesperado: $e');
+      AppMessages.error(
+        context,
+        'Ocurrió un problema inesperado ⚠️\nRevisa tu conexión.',
+      );
+    } finally {
+      isLoading = false;
     }
   }
 
-  Future<void> register(String email, String password, BuildContext context) async {
+  Future<void> register(
+    String email,
+    String password,
+    BuildContext context,
+  ) async {
     isLoading = true;
     try {
       final response = await _supabase.auth.signUp(
@@ -49,13 +73,16 @@ class AuthService extends ChangeNotifier {
       );
 
       if (response.user != null) {
-          AppMessages.success(
+        AppMessages.success(
           context,
           'Cuenta creada 🎉\nRevisa tu correo para confirmar 💌',
         );
         final appService = context.read<AppService>();
 
-        appService.setDataUser(email, password); // Se guarda el email y password en Preferencias
+        appService.setDataUser(
+          email,
+          password,
+        ); // Se guarda el email y password en Preferencias
         NavigationService().pushReplacementNamed(HomeScreen.routeName);
       }
     } on AuthException catch (e) {

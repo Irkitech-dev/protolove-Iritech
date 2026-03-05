@@ -27,6 +27,8 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Permite iniciar sesión con Face ID/hUella para mayor seguridad</string>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>

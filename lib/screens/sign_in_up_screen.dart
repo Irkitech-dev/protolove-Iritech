@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../service/app_service.dart';
+import '../service/service.dart';
 import '../utils/utils.dart';
 import '../widgets/widgets.dart';
 import 'screen.dart';
@@ -40,7 +41,7 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) { 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
           imagesReady = true;
@@ -52,6 +53,7 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
   @override
   Widget build(BuildContext context) {
     final appService = context.watch<AppService>();
+    final authService = context.watch<AuthService>();
     return Scaffold(
       body: Stack(
         children: [
@@ -134,45 +136,67 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                   text: 'Iniciar sesión',
                   color: AppColors().buttonColor,
                   textColor: Colors.white,
-                  onPressed: () {
-                    print(appService.isLogged);
-                    Navigator.pushNamed(context, LoginScreen.routeName);
+                  onPressed: () async {
+                    if (appService.isLogged) {
+                      final availableBiometrics =
+                          await auth.getAvailableBiometrics();
+                      if (availableBiometrics.isEmpty) {
+                        return print('No enorlada');
+                      }
+                      bool success = await authenticateWithBiometrics();
+                      if (success) {
+                        authService.login(
+                          appService.email,
+                          appService.password,
+                          context,
+                        );
+                        return;
+                      } else {
+                        AppMessages.error(context, 'Autenticación fallida');
+                        return;
+                      }
+                    }
+                    NavigationService().pushNamed(LoginScreen.routeName);
                   },
                 ),
                 const SizedBox(height: 15),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        thickness: 1,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
+                appService.isLogged
+                    ? const Offstage()
+                    : Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            thickness: 1,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10.0),
+                          child: Text(
+                            'o',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            thickness: 1,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10.0),
-                      child: Text(
-                        'o',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                    Expanded(
-                      child: Divider(
-                        thickness: 1,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 12),
-                PrimaryButton(
-                  text: 'Registro',
-                  textColor: Colors.white,
-                  color: AppColors().buttonColor,
-                  onPressed: () {
-                    //NavigationService().pushNamed(RegisterNameScreen.routeName);
-                    Navigator.pushNamed(context, RegisterScreen.routeName);
-                  },
-                ),
+                appService.isLogged
+                    ? const Offstage()
+                    : PrimaryButton(
+                      text: 'Registro',
+                      textColor: Colors.white,
+                      color: AppColors().buttonColor,
+                      onPressed: () {
+                        //NavigationService().pushNamed(RegisterNameScreen.routeName);
+                        Navigator.pushNamed(context, RegisterScreen.routeName);
+                      },
+                    ),
               ],
             ),
           ),

@@ -19,14 +19,20 @@ class AppService extends ChangeNotifier {
 
   Future<void> init() async {
     _isLogged = await _prefs.getIsLogged();
-    print('AppService: isLogged=$_isLogged');
+    if (_isLogged) {
+      _prefs.getCredentialUser().then((credentials) {
+        _email = credentials['email'] ?? '';
+        _password = credentials['password'] ?? '';
+        notifyListeners();
+      });
+    }
     notifyListeners();
   }
 
-  Future<void> login() async {
+  Future<void> setLoginData(String emailStr, String passwordStr) async {
     _isLogged = true;
     await _prefs.setIsLogged(true);
-    print('AppService: isLogged=$_isLogged');
+    setDataUser(emailStr, passwordStr);
     notifyListeners();
   }
 

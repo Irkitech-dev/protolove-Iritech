@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:protolove_iritech/widgets/widgets.dart';
-import 'package:protolove_iritech/screens/home/home_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:protolove_iritech/utils/app_messages.dart';
+import 'package:provider/provider.dart';
 import 'package:protolove_iritech/screens/auth/register_screen.dart';
 import 'package:protolove_iritech/screens/auth/forgot_password_screen.dart';
+
+import '../../service/service.dart';
 
 class LoginScreen extends StatefulWidget {
   static const String routeName = 'login';
@@ -17,53 +17,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final supabase = Supabase.instance.client;
-
-  bool isLoading = false;
-
-  Future<void> _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      AppMessages.info(context, 'Por favor ingresa tu correo y contraseña ✍️');
-      return;
-    }
-    setState(() => isLoading = true);
-
-    try {
-      final response = await supabase.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      if (response.user != null && mounted) {
-        AppMessages.success(context, '¡Bienvenido a Protolove! 💕');
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
-    } on AuthException catch (e) {
-      print(e);
-      if (e.message.contains('Invalid login credentials')) {
-        AppMessages.error(
-          context,
-          'Correo o contraseña incorrectos 🔐\nInténtalo nuevamente.',
-        );
-      } else {
-        AppMessages.error(
-          context,
-          'No pudimos iniciar sesión 😕\nInténtalo más tarde.',
-        );
-      }
-    } catch (_) {
-      AppMessages.error(
-        context,
-        'Ocurrió un problema inesperado ⚠️\nRevisa tu conexión.',
-      );
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
 
   @override
   void dispose() {
@@ -74,6 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authService = context.watch<AuthService>();
+
     return Scaffold(
       //backgroundColor: const Color(0xffFBE4E1),
       body: SafeArea(
@@ -152,8 +107,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
               /// LOGIN BUTTON
               PrimaryButton(
-                text: isLoading ? 'Cargando...' : 'Login',
-                onPressed: isLoading ? null : _login,
+                text: authService.isLoading ? 'Cargando...' : 'Login',
+                onPressed: () {
+                  if (authService.isLoading) return;
+                  authService.login(
+                    _emailController.text,
+                    _passwordController.text,
+                    context,
+                  );
+                },
               ),
 
               const SizedBox(height: 20),
