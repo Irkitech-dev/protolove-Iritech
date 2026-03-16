@@ -137,26 +137,50 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                   color: AppColors().buttonColor,
                   textColor: Colors.white,
                   onPressed: () async {
-                    if (appService.isLogged) {
+                    if (!appService.isLogged) {
+                      NavigationService().pushNamed(LoginScreen.routeName);
+                      return;
+                    }
+
+                    // Si no hay credenciales guardadas, mandar al login normal
+                    if (appService.email.trim().isEmpty ||
+                        appService.password.trim().isEmpty) {
+                      NavigationService().pushNamed(LoginScreen.routeName);
+                      return;
+                    }
+
+                    try {
                       final availableBiometrics =
                           await auth.getAvailableBiometrics();
+
+                      // Si no hay biometría disponible, permitir login manual
                       if (availableBiometrics.isEmpty) {
-                        return print('No enorlada');
+                        NavigationService().pushNamed(LoginScreen.routeName);
+                        return;
                       }
-                      bool success = await authenticateWithBiometrics();
+
+                      final success = await authenticateWithBiometrics();
+
                       if (success) {
-                        authService.login(
+                        await authService.login(
                           appService.email,
                           appService.password,
                           context,
                         );
-                        return;
                       } else {
-                        AppMessages.error(context, 'Autenticación fallida');
-                        return;
+                        AppMessages.error(
+                          context,
+                          'Autenticación biométrica fallida',
+                        );
+                        NavigationService().pushNamed(LoginScreen.routeName);
                       }
+                    } catch (e) {
+                      AppMessages.error(
+                        context,
+                        'No se pudo validar biometría',
+                      );
+                      NavigationService().pushNamed(LoginScreen.routeName);
                     }
-                    NavigationService().pushNamed(LoginScreen.routeName);
                   },
                 ),
                 const SizedBox(height: 15),

@@ -11,16 +11,29 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'utils/utils.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    throw Exception('No se pudo cargar el archivo .env: $e');
+  }
 
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-  );
+  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+
+  if (supabaseUrl == null || supabaseUrl.isEmpty) {
+    throw Exception('Falta SUPABASE_URL en el archivo .env');
+  }
+
+  if (supabaseAnonKey == null || supabaseAnonKey.isEmpty) {
+    throw Exception('Falta SUPABASE_ANON_KEY en el archivo .env');
+  }
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+
   runApp(
     MultiProvider(
       providers: [
@@ -34,7 +47,6 @@ void main() async {
   );
 }
 
-// Acceso global al cliente de Supabase
 final supabase = Supabase.instance.client;
 
 class MyApp extends StatelessWidget {

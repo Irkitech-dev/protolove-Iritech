@@ -11,21 +11,25 @@ class AppService extends ChangeNotifier {
   String _email = '';
   String _password = '';
 
-  
   bool get isLogged => _isLogged;
   String get email => _email;
   String get password => _password;
 
-
   Future<void> init() async {
     _isLogged = await _prefs.getIsLogged();
+
     if (_isLogged) {
-      _prefs.getCredentialUser().then((credentials) {
-        _email = credentials['email'] ?? '';
-        _password = credentials['password'] ?? '';
-        notifyListeners();
-      });
+      final credentials = await _prefs.getCredentialUser();
+      _email = credentials['email'] ?? '';
+      _password = credentials['password'] ?? '';
+
+      // Si decía que estaba logueado pero no hay credenciales, corregimos estado
+      if (_email.isEmpty || _password.isEmpty) {
+        _isLogged = false;
+        await _prefs.setIsLogged(false);
+      }
     }
+
     notifyListeners();
   }
 
