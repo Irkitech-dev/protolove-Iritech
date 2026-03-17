@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:protolove_iritech/screens/auth/register_screen.dart';
 import 'package:protolove_iritech/screens/auth/forgot_password_screen.dart';
 
+import '../../service/app_service.dart';
 import '../../service/service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
-
+    final appService = context.watch<AppService>();
     return Scaffold(
       //backgroundColor: const Color(0xffFBE4E1),
       body: SafeArea(
@@ -38,19 +39,21 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               /// HEADER
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Bienvenido PROTOLOVE',
+                  authService.notHasBiometric
+                      ? 'Bienvenido de vuelta a PROTOLOVE'
+                      : 'Bienvenido PROTOLOVE',
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
               ),
 
               const SizedBox(height: 8),
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Que la pasen bien 💕',
+                  authService.notHasBiometric ? '' : 'Que la pasen bien 💕',
                   style: TextStyle(color: Colors.black54),
                 ),
               ),
@@ -58,18 +61,19 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 30),
 
               /// EMAIL
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  hintText: 'Correo electrónico',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                    borderSide: BorderSide.none,
+              if (!authService.notHasBiometric)
+                TextField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    hintText: 'Correo electrónico',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 16),
 
               /// PASSWORD
@@ -92,8 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
+                    NavigationService().push(
                       MaterialPageRoute(
                         builder: (_) => const ForgotPasswordScreen(),
                       ),
@@ -110,6 +113,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 text: authService.isLoading ? 'Cargando...' : 'Login',
                 onPressed: () {
                   if (authService.isLoading) return;
+                  if (authService.notHasBiometric) {
+                    authService.login(
+                      appService.email,
+                      _passwordController.text,
+                      context,
+                    );
+                    return;
+                  }
                   authService.login(
                     _emailController.text,
                     _passwordController.text,

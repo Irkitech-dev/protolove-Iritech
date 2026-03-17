@@ -137,11 +137,14 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                   color: AppColors().buttonColor,
                   textColor: Colors.white,
                   onPressed: () async {
+                    authService.notHasBiometric = false;
                     if (appService.isLogged) {
                       final availableBiometrics =
                           await auth.getAvailableBiometrics();
                       if (availableBiometrics.isEmpty) {
-                        return print('No enorlada');
+                        authService.notHasBiometric = true;
+                        NavigationService().pushNamed(LoginScreen.routeName);
+                        return;
                       }
                       bool success = await authenticateWithBiometrics();
                       if (success) {
@@ -152,6 +155,8 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                         );
                         return;
                       } else {
+                        authService.notHasBiometric = true;
+                        NavigationService().pushNamed(LoginScreen.routeName);
                         AppMessages.error(context, 'Autenticación fallida');
                         return;
                       }

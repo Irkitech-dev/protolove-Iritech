@@ -11,24 +11,28 @@ class AppService extends ChangeNotifier {
   String _email = '';
   String _password = '';
 
-  
   bool get isLogged => _isLogged;
+
   String get email => _email;
   String get password => _password;
-
 
   Future<void> init() async {
     _isLogged = await _prefs.getIsLogged();
     if (_isLogged) {
-      _prefs.getCredentialUser().then((credentials) {
-        _email = credentials['email'] ?? '';
-        _password = credentials['password'] ?? '';
-        notifyListeners();
-      });
+      getCredentialUser();
     }
     notifyListeners();
   }
 
+  //Obtener credenciales guardadas
+  void getCredentialUser() async {
+    final credentials = await _prefs.getCredentialUser();
+    _email = credentials['email']!;
+    _password = credentials['password']!;
+    notifyListeners();
+  }
+
+  //Setear datos de Usuario
   Future<void> setLoginData(String emailStr, String passwordStr) async {
     _isLogged = true;
     await _prefs.setIsLogged(true);
