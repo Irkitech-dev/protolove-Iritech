@@ -18,9 +18,11 @@ class AppService extends ChangeNotifier {
 
   Future<void> init() async {
     _isLogged = await _prefs.getIsLogged();
+
     if (_isLogged) {
       getCredentialUser();
     }
+
     notifyListeners();
   }
 

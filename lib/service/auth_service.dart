@@ -42,7 +42,7 @@ class AuthService extends ChangeNotifier {
       if (response.user != null) {
         AppMessages.success(context, '¡Bienvenido a Protolove! 💕');
         final appService = context.read<AppService>();
-        appService.setLoginData(email, password);
+        await appService.setLoginData(email, password);
         NavigationService().pushReplacementNamed(HomeScreen.routeName);
       }
     } on AuthException catch (e) {
@@ -85,11 +85,7 @@ class AuthService extends ChangeNotifier {
           'Cuenta creada 🎉\nRevisa tu correo para confirmar 💌',
         );
         final appService = context.read<AppService>();
-
-        appService.setDataUser(
-          email,
-          password,
-        ); // Se guarda el email y password en Preferencias
+        await appService.setDataUser(email, password);
         NavigationService().pushReplacementNamed(HomeScreen.routeName);
       }
     } on AuthException catch (e) {
