@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import 'package:staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../service/app_service.dart';
@@ -13,6 +12,7 @@ import 'screen.dart';
 
 class SignInUpScreen extends StatefulWidget {
   static const String routeName = 'sign_in_up';
+
   const SignInUpScreen({super.key});
 
   @override
@@ -22,7 +22,7 @@ class SignInUpScreen extends StatefulWidget {
 class _SignInUpScreenState extends State<SignInUpScreen> {
   bool imagesReady = false;
 
-  List<String> images = [
+  final List<String> images = [
     'assets/persona.jpg',
     'assets/pareja_2.jpg',
     'assets/pareja_7.jpg',
@@ -54,6 +54,7 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
   Widget build(BuildContext context) {
     final appService = context.watch<AppService>();
     final authService = context.watch<AuthService>();
+
     return Scaffold(
       body: Stack(
         children: [
@@ -84,17 +85,32 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
               ),
             ),
           ),
-
           Positioned.fill(
             child: RepaintBoundary(
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                 child: ColorFiltered(
                   colorFilter: const ColorFilter.matrix([
-                    0.85, 0, 0, 0, 0, // ↓ saturación
-                    0, 0.85, 0, 0, 0,
-                    0, 0, 0.85, 0, 0,
-                    0, 0, 0, 1, 0,
+                    0.85,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0.85,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0.85,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
                   ]),
                   child: RepaintBoundary(
                     child: StaggeredImages(
@@ -106,19 +122,17 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
               ),
             ),
           ),
-
-          // Contenido
           Positioned(
             bottom: 40,
             left: 24,
             right: 24,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 64),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 64),
                   child: Divider(thickness: 6, color: Colors.white),
                 ),
-                Text(
+                const Text(
                   'PROTO\nLOVE',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -127,8 +141,8 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                     color: Colors.white,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 64),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 64),
                   child: Divider(thickness: 6, color: Colors.white),
                 ),
                 const SizedBox(height: 30),
@@ -138,7 +152,22 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                   textColor: Colors.white,
                   onPressed: () async {
                     authService.notHasBiometric = false;
-                    if (appService.isLogged) {
+
+                    // Si no hay sesión previa, abre login normal
+                    if (!appService.isLogged) {
+                      NavigationService().pushNamed(LoginScreen.routeName);
+                      return;
+                    }
+
+                    // Si faltan credenciales guardadas, abre login normal
+                    if (appService.email.trim().isEmpty ||
+                        appService.password.trim().isEmpty) {
+                      authService.notHasBiometric = true;
+                      NavigationService().pushNamed(LoginScreen.routeName);
+                      return;
+                    }
+
+                    try {
                       final availableBiometrics =
                           await auth.getAvailableBiometrics();
 
@@ -159,11 +188,12 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                         );
                       } else {
                         authService.notHasBiometric = true;
-                        NavigationService().pushNamed(LoginScreen.routeName);
                         AppMessages.error(context, 'Autenticación fallida');
+                        NavigationService().pushNamed(LoginScreen.routeName);
                         return;
                       }
                     } catch (e) {
+                      authService.notHasBiometric = true;
                       AppMessages.error(
                         context,
                         'No se pudo validar biometría',
@@ -206,7 +236,6 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                       textColor: Colors.white,
                       color: AppColors().buttonColor,
                       onPressed: () {
-                        //NavigationService().pushNamed(RegisterNameScreen.routeName);
                         Navigator.pushNamed(context, RegisterScreen.routeName);
                       },
                     ),
@@ -222,6 +251,7 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
 class StaggeredImages extends StatefulWidget {
   final List<String> images;
   final bool animate;
+
   const StaggeredImages({
     super.key,
     required this.images,
@@ -269,7 +299,6 @@ class _StaggeredImagesState extends State<StaggeredImages>
       mainAxisSpacing: 5,
       crossAxisSpacing: 5,
       physics: const NeverScrollableScrollPhysics(),
-
       itemBuilder: (context, index) {
         final animation = CurvedAnimation(
           parent: _controller,
@@ -298,7 +327,6 @@ class _StaggeredImagesState extends State<StaggeredImages>
           ),
         );
       },
-
       staggeredTileBuilder: (index) {
         return StaggeredTile.count(1, index % 2 == 0 ? 1.8 : 1.4);
       },
