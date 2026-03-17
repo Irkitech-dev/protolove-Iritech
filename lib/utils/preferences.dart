@@ -24,9 +24,5 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('email', email);
     await prefs.setString('password', password);
-    //Obtener credenciales guardadas
-    final savedEmail = prefs.getString('email');
-    final savedPassword = prefs.getString('password');
-    print('Credenciales guardadas: email=$savedEmail, password=$savedPassword');
   }
 }

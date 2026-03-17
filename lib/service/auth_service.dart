@@ -12,11 +12,18 @@ class AuthService extends ChangeNotifier {
 
   //Variables
   bool _isLoading = false;
+  bool _notHasBiometric = false;
 
   //Getter y setter
   bool get isLoading => _isLoading;
   set isLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  bool get notHasBiometric => _notHasBiometric;
+  set notHasBiometric(bool value) {
+    _notHasBiometric = value;
     notifyListeners();
   }
 

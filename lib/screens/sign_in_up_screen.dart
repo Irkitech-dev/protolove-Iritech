@@ -137,24 +137,14 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                   color: AppColors().buttonColor,
                   textColor: Colors.white,
                   onPressed: () async {
-                    if (!appService.isLogged) {
-                      NavigationService().pushNamed(LoginScreen.routeName);
-                      return;
-                    }
-
-                    // Si no hay credenciales guardadas, mandar al login normal
-                    if (appService.email.trim().isEmpty ||
-                        appService.password.trim().isEmpty) {
-                      NavigationService().pushNamed(LoginScreen.routeName);
-                      return;
-                    }
-
-                    try {
+                    authService.notHasBiometric = false;
+                    if (appService.isLogged) {
                       final availableBiometrics =
                           await auth.getAvailableBiometrics();
 
                       // Si no hay biometría disponible, permitir login manual
                       if (availableBiometrics.isEmpty) {
+                        authService.notHasBiometric = true;
                         NavigationService().pushNamed(LoginScreen.routeName);
                         return;
                       }
@@ -168,11 +158,10 @@ class _SignInUpScreenState extends State<SignInUpScreen> {
                           context,
                         );
                       } else {
-                        AppMessages.error(
-                          context,
-                          'Autenticación biométrica fallida',
-                        );
+                        authService.notHasBiometric = true;
                         NavigationService().pushNamed(LoginScreen.routeName);
+                        AppMessages.error(context, 'Autenticación fallida');
+                        return;
                       }
                     } catch (e) {
                       AppMessages.error(
