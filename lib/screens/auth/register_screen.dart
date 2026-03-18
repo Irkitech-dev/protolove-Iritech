@@ -17,6 +17,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _obscurePassword1 = true;
+  bool _obscurePassword2 = true;
 
   @override
   void dispose() {
@@ -74,10 +76,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
               /// PASSWORD
               TextField(
                 controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: _obscurePassword1,
+                decoration: InputDecoration(
                   hintText: 'Contraseña',
                   prefixIcon: Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword1
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword1 = !_obscurePassword1;
+                      });
+                    },
+                  ),
                   filled: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -90,10 +104,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
               /// CONFIRM PASSWORD
               TextField(
                 controller: _confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: _obscurePassword2,
+                decoration:  InputDecoration(
                   hintText: 'Confirmar contraseña',
                   prefixIcon: Icon(Icons.lock_reset_outlined),
+                    suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword2
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword2 = !_obscurePassword2;
+                      });
+                    },
+                  ),
                   filled: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
