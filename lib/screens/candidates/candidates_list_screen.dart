@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'candidate_create_screen.dart';
 import 'candidate_score_screen.dart';
 
@@ -24,7 +25,13 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     setState(() => loading = true);
 
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      setState(() {
+        items = [];
+        loading = false;
+      });
+      return;
+    }
 
     final data = await Supabase.instance.client
         .from('plv_candidates')
@@ -32,8 +39,56 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
         .eq('user_id', user.id)
         .order('created_at', ascending: false);
 
+    final candidates = List<Map<String, dynamic>>.from(data);
+
+    final enriched = await Future.wait(
+      candidates.map((candidate) async {
+        final scores = await Supabase.instance.client
+            .from('plv_candidate_scores')
+            .select('score,weight,is_required,trait_name')
+            .eq('candidate_id', candidate['id']);
+
+        final rows = List<Map<String, dynamic>>.from(scores);
+
+        double weightedSum = 0;
+        double totalWeight = 0;
+
+        final missingNonNegotiables = <String>[];
+
+        for (final row in rows) {
+          final score = row['score'];
+          final weight = row['weight'];
+
+          if (score != null && weight != null) {
+            weightedSum += (score as int) * (weight as int);
+            totalWeight += (weight as int).toDouble();
+          }
+
+          final isRequired = (row['is_required'] as bool?) ?? false;
+          final candidateScore = row['score'] as int?;
+
+          if (isRequired && (candidateScore == null || candidateScore < 10)) {
+            missingNonNegotiables.add((row['trait_name'] ?? '').toString());
+          }
+        }
+
+        final globalScore = totalWeight == 0 ? 0.0 : weightedSum / totalWeight;
+        final percentage = (globalScore / 10) * 100;
+
+        return {
+          ...candidate,
+          'global_score': globalScore,
+          'percentage': percentage,
+          'missing_non_negotiables': missingNonNegotiables,
+          'has_non_negotiable_issue': missingNonNegotiables.isNotEmpty,
+        };
+      }),
+    );
+
+    if (!mounted) return;
+
     setState(() {
-      items = List<Map<String, dynamic>>.from(data);
+      items = enriched;
       loading = false;
     });
   }
@@ -80,6 +135,21 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     return true;
   }
 
+  String _buildSubtitle(Map<String, dynamic> c) {
+    final alias = (c['alias'] ?? '').toString().trim();
+    final percentage = ((c['percentage'] ?? 0.0) as num).toDouble();
+    final hasIssue = (c['has_non_negotiable_issue'] as bool?) ?? false;
+
+    final aliasText = alias.isEmpty ? 'Sin alias' : alias;
+    final percentText = '${percentage.toStringAsFixed(0)}% de compatibilidad';
+
+    if (hasIssue) {
+      return '$aliasText • $percentText • Tiene no negociables pendientes';
+    }
+
+    return '$aliasText • $percentText';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,7 +168,10 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
             context,
             MaterialPageRoute(builder: (_) => const CandidateCreateScreen()),
           );
-          if (created == true) _load();
+
+          if (created == true) {
+            _load();
+          }
         },
         child: const Icon(Icons.add),
       ),
@@ -112,17 +185,54 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final c = items[i];
+                  final hasIssue =
+                      (c['has_non_negotiable_issue'] as bool?) ?? false;
+                  final percentage =
+                      ((c['percentage'] ?? 0.0) as num).toDouble();
+
+                  final primaryColor =
+                      hasIssue
+                          ? Colors.red
+                          : Theme.of(context).colorScheme.primary;
+
                   return ListTile(
-                    leading: const Icon(Icons.person),
-                    title: Text(c['name'] ?? ''),
-                    subtitle: Text(
-                      (c['alias'] ?? '').toString().isEmpty
-                          ? 'Sin alias'
-                          : c['alias'],
+                    leading: Icon(
+                      Icons.person,
+                      color: hasIssue ? Colors.red : null,
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
+                    title: Text(
+                      c['name'] ?? '',
+                      style: TextStyle(
+                        color: hasIssue ? Colors.red : null,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _buildSubtitle(c),
+                      style: TextStyle(
+                        color: hasIssue ? Colors.red : Colors.black54,
+                      ),
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${percentage.toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (hasIssue)
+                          const Text(
+                            'Revisar',
+                            style: TextStyle(color: Colors.red, fontSize: 11),
+                          ),
+                      ],
+                    ),
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder:
@@ -132,6 +242,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                               ),
                         ),
                       );
+                      _load();
                     },
                   );
                 },
