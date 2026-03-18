@@ -423,7 +423,14 @@ class _TraitFormSheetState extends State<_TraitFormSheet> {
                     max: 10,
                     divisions: 9,
                     label: weight.toInt().toString(),
-                    onChanged: (v) => setState(() => weight = v),
+                    onChanged:
+                        isRequired
+                            ? null
+                            : (v) {
+                              setState(() {
+                                weight = v;
+                              });
+                            },
                   ),
                 ),
                 SizedBox(width: 36, child: Text(weight.toInt().toString())),
@@ -432,7 +439,16 @@ class _TraitFormSheetState extends State<_TraitFormSheet> {
 
             SwitchListTile(
               value: isRequired,
-              onChanged: (v) => setState(() => isRequired = v),
+              onChanged: (v) {
+                setState(() {
+                  isRequired = v;
+                  if (isRequired) {
+                    weight = 10;
+                  } else {
+                    weight = 5;
+                  }
+                });
+              },
               title: const Text('No negociable'),
               subtitle: const Text('Este rasgo es obligatorio.'),
             ),
