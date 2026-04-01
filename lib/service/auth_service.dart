@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:protolove_iritech/screens/home/home_screen.dart';
 import 'package:protolove_iritech/service/app_service.dart';
 import 'package:protolove_iritech/service/service.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../screens/screen.dart';
 import '../utils/app_messages.dart';
 
 class AuthService extends ChangeNotifier {
@@ -85,8 +85,8 @@ class AuthService extends ChangeNotifier {
           'Cuenta creada 🎉\nRevisa tu correo para confirmar 💌',
         );
         final appService = context.read<AppService>();
-        await appService.setDataUser(email, password);
-        NavigationService().pushReplacementNamed(HomeScreen.routeName);
+        await appService.setLoginData(email, password);
+        NavigationService().pushNamed(RegisterNameScreen.routeName);
       }
     } on AuthException catch (e) {
       if (e.message.contains('already registered')) {
@@ -99,6 +99,28 @@ class AuthService extends ChangeNotifier {
     } finally {
       isLoading = false;
     }
+  }
+
+  Future<void> createUserProfile(String alias) async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Usuario no autenticado');
+    }
+
+    final existingAlias =
+        await supabase
+            .from('plv_users')
+            .select('id')
+            .eq('alias', alias)
+            .maybeSingle();
+
+    if (existingAlias != null && existingAlias['id'] != user.id) {
+      throw Exception('El nombre seleccionado ya está en uso. Por favor, elige otro.');
+    }
+
+    await supabase.from('plv_users').upsert({'id': user.id, 'alias': alias});
   }
 
   Future<void> logout() async {

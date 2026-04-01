@@ -1,6 +1,11 @@
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:protolove_iritech/utils/colors.dart';
+import 'package:provider/provider.dart';
+
+import '../../service/service.dart';
+import '../screen.dart';
 
 class RegisterNameScreen extends StatefulWidget {
   static const String routeName = 'register_name';
@@ -14,6 +19,8 @@ class _RegisterNameScreenState extends State<RegisterNameScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late PageController _pageController;
+  final TextEditingController _aliasController = TextEditingController();
+  bool isSaving = false;
   int currentPage = 0;
 
   @override
@@ -30,6 +37,7 @@ class _RegisterNameScreenState extends State<RegisterNameScreen>
 
   @override
   void dispose() {
+    _aliasController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -203,10 +211,11 @@ class _RegisterNameScreenState extends State<RegisterNameScreen>
                               color: Colors.white.withOpacity(0.2),
                             ),
                           ),
-                          child: const TextField(
-                            style: TextStyle(color: Colors.white),
+                          child: TextField(
+                            controller: _aliasController,
+                            style: const TextStyle(color: Colors.white),
                             cursorColor: Colors.white,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               border: InputBorder.none,
                               hintText: 'Tu nombre…',
                               hintStyle: TextStyle(color: Colors.white54),
@@ -216,23 +225,128 @@ class _RegisterNameScreenState extends State<RegisterNameScreen>
 
                         const SizedBox(height: 30),
 
-                        TextButton(
-                          onPressed: () {
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 800),
-                              curve: Curves.easeInOutCubic,
-                            );
-                          },
-                          child: const Text(
-                            'Atrás',
-                            style: TextStyle(color: Colors.white54),
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 800),
+                                  curve: Curves.easeInOutCubic,
+                                );
+                              },
+                              child: const Text(
+                                'Atrás',
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final alias = _aliasController.text.trim();
+                                if (alias.isEmpty) return;
+
+                                setState(() => isSaving = true);
+
+                                try {
+                                  await context
+                                      .read<AuthService>()
+                                      .createUserProfile(alias);
+
+                                  NavigationService().pushReplacementNamed(
+                                    HomeScreen.routeName,
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        e.toString().replaceAll(
+                                          'Exception: ',
+                                          '',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                } finally {
+                                  setState(() => isSaving = false);
+                                }
+                              },
+                              child: const Text(
+                                'Continuar',
+                                style: TextStyle(
+                                  color: Color.fromARGB(255, 255, 255, 255),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
+
+              if (isSaving)
+                Positioned.fill(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 250),
+                    opacity: isSaving ? 1 : 0,
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.2),
+                        child: Center(
+                          child: TweenAnimationBuilder<double>(
+                            duration: const Duration(milliseconds: 300),
+                            tween: Tween(begin: 0.8, end: 1),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, scale, child) {
+                              return Transform.scale(
+                                scale: scale,
+                                child: child,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 28,
+                                vertical: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(28),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.25),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(height: 18),
+                                  Text(
+                                    'Guardando...',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
