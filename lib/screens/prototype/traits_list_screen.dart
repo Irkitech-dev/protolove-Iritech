@@ -40,6 +40,10 @@ class _TraitsListScreenState extends State<TraitsListScreen> {
         )
         .eq('prototype_id', widget.prototypeId)
         .order('category')
+        .order('is_required', ascending: false)
+        .order('weight', ascending: true)
+        .order('display_order', ascending: true)
+        .order('created_at', ascending: true)
         .order('name');
 
     setState(() {
@@ -70,11 +74,18 @@ class _TraitsListScreenState extends State<TraitsListScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder:
-          (_) => _TraitFormSheet(
-            prototypeId: widget.prototypeId,
-            existing: existing,
+      builder: (_) {
+        return SafeArea(
+          top: false,
+          child: FractionallySizedBox(
+            heightFactor: 0.92,
+            child: _TraitFormSheet(
+              prototypeId: widget.prototypeId,
+              existing: existing,
+            ),
           ),
+        );
+      },
     );
 
     if (saved == true) _loadTraits();
@@ -340,146 +351,155 @@ class _TraitFormSheetState extends State<_TraitFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    final safeBottom = media.viewPadding.bottom;
 
-    return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: bottom + 16,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              editing ? 'Editar rasgo' : 'Nuevo rasgo',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del rasgo',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.title),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Descripción (opcional)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.description),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            DropdownButtonFormField<String>(
-              value: category,
-              decoration: const InputDecoration(
-                labelText: 'Categoría',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'fisica', child: Text('Física')),
-                DropdownMenuItem(
-                  value: 'intelectual',
-                  child: Text('Intelectual'),
-                ),
-                DropdownMenuItem(value: 'emocional', child: Text('Emocional')),
-                DropdownMenuItem(value: 'social', child: Text('Social')),
-                DropdownMenuItem(value: 'moral', child: Text('Moral')),
-              ],
-              onChanged: (v) => setState(() => category = v ?? 'fisica'),
-            ),
-
-            const SizedBox(height: 14),
-            Row(
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, safeBottom + 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Peso'),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Slider(
-                    value: weight,
-                    min: 1,
-                    max: 10,
-                    divisions: 9,
-                    label: weight.toInt().toString(),
-                    onChanged:
-                        isRequired
-                            ? null
-                            : (v) {
-                              setState(() {
-                                weight = v;
-                              });
-                            },
+                Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                SizedBox(width: 36, child: Text(weight.toInt().toString())),
+                const SizedBox(height: 12),
+                Text(
+                  editing ? 'Editar rasgo' : 'Nuevo rasgo',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del rasgo',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.title),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                TextField(
+                  controller: descCtrl,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción (opcional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.description),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                DropdownButtonFormField<String>(
+                  value: category,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoría',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'fisica', child: Text('Física')),
+                    DropdownMenuItem(
+                      value: 'intelectual',
+                      child: Text('Intelectual'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'emocional',
+                      child: Text('Emocional'),
+                    ),
+                    DropdownMenuItem(value: 'social', child: Text('Social')),
+                    DropdownMenuItem(value: 'moral', child: Text('Moral')),
+                  ],
+                  onChanged: (v) => setState(() => category = v ?? 'fisica'),
+                ),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    const Text('Peso'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Slider(
+                        value: weight,
+                        min: 1,
+                        max: 10,
+                        divisions: 9,
+                        label: weight.toInt().toString(),
+                        onChanged:
+                            isRequired
+                                ? null
+                                : (v) => setState(() => weight = v),
+                      ),
+                    ),
+                    SizedBox(width: 36, child: Text(weight.toInt().toString())),
+                  ],
+                ),
+
+                SwitchListTile(
+                  value: isRequired,
+                  onChanged: (v) {
+                    setState(() {
+                      isRequired = v;
+                      if (isRequired) {
+                        weight = 10;
+                      }
+                    });
+                  },
+                  title: const Text('No negociable'),
+                  subtitle: const Text('Este rasgo es obligatorio.'),
+                ),
+
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: saving ? null : _save,
+                    icon:
+                        saving
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Icon(Icons.save),
+                    label: Text(saving ? 'Guardando...' : 'Guardar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.pinkAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-
-            SwitchListTile(
-              value: isRequired,
-              onChanged: (v) {
-                setState(() {
-                  isRequired = v;
-                  if (isRequired) {
-                    weight = 10;
-                  } else {
-                    weight = 5;
-                  }
-                });
-              },
-              title: const Text('No negociable'),
-              subtitle: const Text('Este rasgo es obligatorio.'),
-            ),
-
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: saving ? null : _save,
-                icon:
-                    saving
-                        ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                        : const Icon(Icons.save),
-                label: Text(saving ? 'Guardando...' : 'Guardar'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.pinkAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

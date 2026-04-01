@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../utils/candidate_score_utils.dart';
 import 'candidate_create_screen.dart';
 import 'candidate_score_screen.dart';
 
@@ -45,45 +46,40 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
       candidates.map((candidate) async {
         final scores = await Supabase.instance.client
             .from('plv_candidate_scores')
-            .select('score,weight,is_required,trait_name')
+            .select(
+              'id,candidate_id,prototype_trait_id,category,trait_name,weight,is_required,score',
+            )
             .eq('candidate_id', candidate['id']);
 
         final rows = List<Map<String, dynamic>>.from(scores);
-
-        double weightedSum = 0;
-        double totalWeight = 0;
-
-        final missingNonNegotiables = <String>[];
-
-        for (final row in rows) {
-          final score = row['score'];
-          final weight = row['weight'];
-
-          if (score != null && weight != null) {
-            weightedSum += (score as int) * (weight as int);
-            totalWeight += (weight as int).toDouble();
-          }
-
-          final isRequired = (row['is_required'] as bool?) ?? false;
-          final candidateScore = row['score'] as int?;
-
-          if (isRequired && (candidateScore == null || candidateScore < 10)) {
-            missingNonNegotiables.add((row['trait_name'] ?? '').toString());
-          }
-        }
-
-        final globalScore = totalWeight == 0 ? 0.0 : weightedSum / totalWeight;
-        final percentage = (globalScore / 10) * 100;
+        final percentage = CandidateScoreUtils.percentage(rows);
+        final total = CandidateScoreUtils.totalScore(rows);
+        final missing = CandidateScoreUtils.missingNonNegotiables(rows);
+        final hasIssue = missing.isNotEmpty;
 
         return {
           ...candidate,
-          'global_score': globalScore,
+          'rows': rows,
           'percentage': percentage,
-          'missing_non_negotiables': missingNonNegotiables,
-          'has_non_negotiable_issue': missingNonNegotiables.isNotEmpty,
+          'total': total,
+          'missing_non_negotiables': missing,
+          'has_non_negotiable_issue': hasIssue,
         };
       }),
     );
+
+    enriched.sort((a, b) {
+      final aIssue = (a['has_non_negotiable_issue'] as bool?) ?? false;
+      final bIssue = (b['has_non_negotiable_issue'] as bool?) ?? false;
+
+      if (aIssue != bIssue) {
+        return aIssue ? 1 : -1;
+      }
+
+      final aPercentage = ((a['percentage'] ?? 0) as num).toDouble();
+      final bPercentage = ((b['percentage'] ?? 0) as num).toDouble();
+      return bPercentage.compareTo(aPercentage);
+    });
 
     if (!mounted) return;
 
@@ -107,7 +103,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     if (prototype == null) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero crea tu Prototipo 💖')),
+        const SnackBar(content: Text('Primero crea tu prototipo 💖')),
       );
       return false;
     }
@@ -125,7 +121,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Agrega rasgos al prototipo antes de crear candidatos ✍️',
+            'Agrega características al prototipo antes de crear candidatos.',
           ),
         ),
       );
@@ -135,19 +131,110 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     return true;
   }
 
-  String _buildSubtitle(Map<String, dynamic> c) {
+  Widget _candidateCard(Map<String, dynamic> c) {
+    final name = (c['name'] ?? '').toString();
     final alias = (c['alias'] ?? '').toString().trim();
-    final percentage = ((c['percentage'] ?? 0.0) as num).toDouble();
+    final percentage = ((c['percentage'] ?? 0) as num).toDouble();
+    final total = ((c['total'] ?? 0) as num).toDouble();
     final hasIssue = (c['has_non_negotiable_issue'] as bool?) ?? false;
+    final issues = List<String>.from(c['missing_non_negotiables'] ?? []);
 
-    final aliasText = alias.isEmpty ? 'Sin alias' : alias;
-    final percentText = '${percentage.toStringAsFixed(0)}% de compatibilidad';
+    final color = hasIssue ? Colors.red : Colors.green;
 
-    if (hasIssue) {
-      return '$aliasText • $percentText • Tiene no negociables pendientes';
-    }
-
-    return '$aliasText • $percentText';
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (_) => CandidateScoreScreen(
+                  candidateId: c['id'] as String,
+                  candidateName: name,
+                ),
+          ),
+        );
+        await _load();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.20)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Icon(Icons.person, color: color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (alias.isNotEmpty)
+                        Text(alias, style: TextStyle(color: Colors.grey[700])),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${percentage.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      '${total.toStringAsFixed(2)} / 10',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: (percentage.clamp(0, 100)) / 100,
+                minHeight: 10,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                hasIssue
+                    ? 'No negociables pendientes: ${issues.join(", ")}'
+                    : 'Cumple con los no negociables',
+                style: TextStyle(
+                  color: hasIssue ? Colors.red[800] : Colors.green[800],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -155,11 +242,13 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis Candidatos'),
+        backgroundColor: Colors.pinkAccent,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.pinkAccent,
         onPressed: () async {
           final ok = await _ensurePrototypeReady();
           if (!ok) return;
@@ -170,7 +259,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
           );
 
           if (created == true) {
-            _load();
+            await _load();
           }
         },
         child: const Icon(Icons.add),
@@ -180,72 +269,13 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
               ? const Center(child: CircularProgressIndicator())
               : items.isEmpty
               ? const Center(child: Text('Aún no tienes candidatos.'))
-              : ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final c = items[i];
-                  final hasIssue =
-                      (c['has_non_negotiable_issue'] as bool?) ?? false;
-                  final percentage =
-                      ((c['percentage'] ?? 0.0) as num).toDouble();
-
-                  final primaryColor =
-                      hasIssue
-                          ? Colors.red
-                          : Theme.of(context).colorScheme.primary;
-
-                  return ListTile(
-                    leading: Icon(
-                      Icons.person,
-                      color: hasIssue ? Colors.red : null,
-                    ),
-                    title: Text(
-                      c['name'] ?? '',
-                      style: TextStyle(
-                        color: hasIssue ? Colors.red : null,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _buildSubtitle(c),
-                      style: TextStyle(
-                        color: hasIssue ? Colors.red : Colors.black54,
-                      ),
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${percentage.toStringAsFixed(0)}%',
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        if (hasIssue)
-                          const Text(
-                            'Revisar',
-                            style: TextStyle(color: Colors.red, fontSize: 11),
-                          ),
-                      ],
-                    ),
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => CandidateScoreScreen(
-                                candidateId: c['id'] as String,
-                                candidateName: c['name'] as String,
-                              ),
-                        ),
-                      );
-                      _load();
-                    },
-                  );
-                },
+              : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) => _candidateCard(items[i]),
+                ),
               ),
     );
   }
