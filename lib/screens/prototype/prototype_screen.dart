@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'traits_list_screen.dart';
+import 'traits_categories_screen.dart';
 
 class PrototypeScreen extends StatefulWidget {
   const PrototypeScreen({super.key});
@@ -54,7 +54,22 @@ class _PrototypeScreenState extends State<PrototypeScreen> {
 
     traitsCount = traits.count ?? 0;
 
-    if (mounted) setState(() => loading = false);
+    if (mounted) {
+      setState(() => loading = false);
+    }
+  }
+
+  Future<void> _goToCategories() async {
+    if (prototypeId == null) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TraitsCategoriesScreen(prototypeId: prototypeId!),
+      ),
+    );
+
+    await _loadPrototype();
   }
 
   @override
@@ -74,7 +89,6 @@ class _PrototypeScreenState extends State<PrototypeScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // CARD ESTADO
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -121,10 +135,7 @@ class _PrototypeScreenState extends State<PrototypeScreen> {
                 ],
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // BOTÓN PRINCIPAL
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -141,20 +152,10 @@ class _PrototypeScreenState extends State<PrototypeScreen> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => TraitsListScreen(prototypeId: prototypeId!),
-                    ),
-                  ).then((_) => _loadPrototype());
-                },
+                onPressed: _goToCategories,
               ),
             ),
-
             const SizedBox(height: 20),
-
             if (hasTraits)
               Text(
                 'Mientras más específicos sean tus rasgos, mejor será la compatibilidad.',

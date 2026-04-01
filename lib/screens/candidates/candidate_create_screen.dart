@@ -59,7 +59,10 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nuevo candidato')),
+      appBar: AppBar(
+        title: const Text('Nuevo candidato'),
+        backgroundColor: Colors.pinkAccent,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -82,8 +85,12 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton(
                 onPressed: saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pinkAccent,
+                ),
                 child:
                     saving
                         ? const SizedBox(
