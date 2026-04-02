@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/app_colors.dart';
 
 class CandidateCreateScreen extends StatefulWidget {
   const CandidateCreateScreen({super.key});
@@ -25,32 +26,37 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
     final alias = aliasCtrl.text.trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa el nombre del candidato')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Escribe el nombre')));
       return;
     }
 
     setState(() => saving = true);
 
     try {
-      await Supabase.instance.client.rpc(
+      final candidateId = await Supabase.instance.client.rpc(
         'create_candidate_with_scores',
         params: {'p_name': name, 'p_alias': alias.isEmpty ? null : alias},
       );
 
       if (!mounted) return;
-      Navigator.pop(context, true);
-    } on PostgrestException catch (e) {
-      final msg =
-          e.message.contains('Prototype not found')
-              ? 'Primero crea tu prototipo y agrega rasgos.'
-              : e.message;
 
+      Navigator.pop(context, {
+        'created': true,
+        'candidateId': candidateId,
+        'candidateName': name,
+      });
+    } on PostgrestException catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo crear el candidato')),
+      );
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $msg')));
+      ).showSnackBar(const SnackBar(content: Text('Ocurrió un error')));
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -59,9 +65,12 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Nuevo candidato'),
-        backgroundColor: Colors.pinkAccent,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -69,17 +78,21 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
           children: [
             TextField(
               controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del candidato/a',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: 'Nombre',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: aliasCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Alias (opcional)',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -89,16 +102,23 @@ class _CandidateCreateScreenState extends State<CandidateCreateScreen> {
               child: ElevatedButton(
                 onPressed: saving ? null : _save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.pinkAccent,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 child:
                     saving
                         ? const SizedBox(
-                          height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                        : const Text('Crear candidato'),
+                        : const Text('Crear y puntuar'),
               ),
             ),
           ],

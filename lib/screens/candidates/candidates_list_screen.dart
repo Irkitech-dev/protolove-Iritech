@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../utils/app_colors.dart';
 import '../../utils/candidate_score_utils.dart';
 import 'candidate_create_screen.dart';
 import 'candidate_score_screen.dart';
@@ -59,7 +60,6 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
 
         return {
           ...candidate,
-          'rows': rows,
           'percentage': percentage,
           'total': total,
           'missing_non_negotiables': missing,
@@ -103,7 +103,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     if (prototype == null) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero crea tu prototipo 💖')),
+        const SnackBar(content: Text('Primero crea tu prototipo')),
       );
       return false;
     }
@@ -119,16 +119,59 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     if (traits.isEmpty) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Agrega características al prototipo antes de crear candidatos.',
-          ),
-        ),
+        const SnackBar(content: Text('Agrega rasgos al prototipo')),
       );
       return false;
     }
 
     return true;
+  }
+
+  Future<void> _deleteCandidate(String candidateId, String name) async {
+    final confirm =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (_) => AlertDialog(
+                title: const Text('Eliminar'),
+                content: Text('¿Eliminar a "$name"?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text(
+                      'Eliminar',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+
+    if (!confirm) return;
+
+    try {
+      await Supabase.instance.client
+          .from('plv_candidates')
+          .delete()
+          .eq('id', candidateId);
+
+      await _load();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Candidato eliminado')));
+    } on PostgrestException catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No se pudo eliminar')));
+    }
   }
 
   Widget _candidateCard(Map<String, dynamic> c) {
@@ -139,100 +182,134 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     final hasIssue = (c['has_non_negotiable_issue'] as bool?) ?? false;
     final issues = List<String>.from(c['missing_non_negotiables'] ?? []);
 
-    final color = hasIssue ? Colors.red : Colors.green;
+    final color = hasIssue ? AppColors.danger : AppColors.primary;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (_) => CandidateScoreScreen(
-                  candidateId: c['id'] as String,
-                  candidateName: name,
-                ),
-          ),
-        );
-        await _load();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.20)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: hasIssue ? AppColors.dangerSoft : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color:
+              hasIssue ? AppColors.danger.withOpacity(0.18) : AppColors.border,
         ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withOpacity(0.15),
-                  child: Icon(Icons.person, color: color),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (alias.isNotEmpty)
-                        Text(alias, style: TextStyle(color: Colors.grey[700])),
-                    ],
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(0.14),
+                child: Icon(Icons.person, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  alias.isNotEmpty ? '$name ($alias)' : name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${percentage.toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${percentage.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    '${total.toStringAsFixed(2)} / 10',
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: (percentage.clamp(0, 100)) / 100,
+              minHeight: 10,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              hasIssue ? 'Pendientes: ${issues.join(", ")}' : 'Todo bien',
+              style: TextStyle(
+                color: hasIssue ? AppColors.danger : AppColors.primaryDark,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (_) => CandidateScoreScreen(
+                              candidateId: c['id'] as String,
+                              candidateName: name,
+                            ),
                       ),
+                    );
+                    await _load();
+                  },
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Puntuar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: AppColors.primary.withOpacity(0.25),
                     ),
-                    Text(
-                      '${total.toStringAsFixed(2)} / 10',
-                      style: TextStyle(color: Colors.grey[700]),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(
-                value: (percentage.clamp(0, 100)) / 100,
-                minHeight: 10,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                hasIssue
-                    ? 'No negociables pendientes: ${issues.join(", ")}'
-                    : 'Cumple con los no negociables',
-                style: TextStyle(
-                  color: hasIssue ? Colors.red[800] : Colors.green[800],
-                  fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _deleteCandidate(c['id'] as String, name),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Eliminar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(color: AppColors.danger.withOpacity(0.25)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -240,25 +317,44 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mis Candidatos'),
-        backgroundColor: Colors.pinkAccent,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.pinkAccent,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () async {
           final ok = await _ensurePrototypeReady();
           if (!ok) return;
 
-          final created = await Navigator.push<bool>(
+          final result = await Navigator.push<Map<String, dynamic>>(
             context,
             MaterialPageRoute(builder: (_) => const CandidateCreateScreen()),
           );
 
-          if (created == true) {
+          if (result != null && result['created'] == true) {
+            await _load();
+
+            if (!mounted) return;
+
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => CandidateScoreScreen(
+                      candidateId: result['candidateId'] as String,
+                      candidateName: result['candidateName'] as String,
+                    ),
+              ),
+            );
+
             await _load();
           }
         },
@@ -266,11 +362,14 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
       ),
       body:
           loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
               : items.isEmpty
-              ? const Center(child: Text('Aún no tienes candidatos.'))
+              ? const Center(child: Text('Aún no tienes candidatos'))
               : RefreshIndicator(
                 onRefresh: _load,
+                color: AppColors.primary,
                 child: ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: items.length,

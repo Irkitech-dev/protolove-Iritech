@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../auth/login_screen.dart';
-import 'package:protolove_iritech/utils/app_messages.dart';
+
+import '../../utils/app_colors.dart';
+import '../../utils/candidate_score_utils.dart';
+import '../candidates/candidates_list_screen.dart';
 import '../profile/user_profile_screen.dart';
 import '../prototype/prototype_screen.dart';
-import '../prototype/traits_list_screen.dart';
-import '../candidates/candidates_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  static const String routeName = 'home';
+  static const String routeName = '/home';
+
   const HomeScreen({super.key});
 
   @override
@@ -17,300 +18,258 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final supabase = Supabase.instance.client;
-
-  String? userEmail;
-  String userName = 'Usuario';
-  String? userPhotoUrl;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool loading = true;
-  bool prototypeReady = false;
-  String? prototypeId;
 
+  String userName = 'Usuario';
+  String userAlias = '';
+  String userEmail = '';
   int traitsCount = 0;
   int candidatesCount = 0;
 
-  Map<String, dynamic>? topCandidate; // {name, alias, score}
+  String bestCandidateName = 'Sin datos';
+  double bestCandidateScore = 0;
 
   @override
   void initState() {
     super.initState();
-    _initHome();
+    _loadHome();
   }
 
-  Future<void> _initHome() async {
+  Future<void> _loadHome() async {
     setState(() => loading = true);
 
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => LoginScreen()),
-        );
-      }
-      return;
-    }
-
-    userEmail = user.email;
-
     try {
-      await _loadUserData(user.id);
-      await _loadPrototypeAndCounts(user.id);
-      await _loadTopCandidate(user.id);
-    } on PostgrestException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          userName = 'Usuario';
+          userAlias = '';
+          userEmail = '';
+          traitsCount = 0;
+          candidatesCount = 0;
+          bestCandidateName = 'Sin datos';
+          bestCandidateScore = 0;
+          loading = false;
+        });
+        return;
+      }
 
-  Future<void> _loadUserData(String userId) async {
-    final response =
-        await supabase
-            .from('plv_users')
-            .select('alias, avatar_url')
-            .eq('id', userId)
-            .maybeSingle();
+      userEmail = user.email ?? '';
 
-    if (response != null) {
-      setState(() {
-        userName = response['alias'] ?? 'Usuario';
-        userPhotoUrl = response['avatar_url'];
-      });
-    } else {
-      setState(() => userName = 'Completa tu perfil');
-    }
-  }
+      final profile =
+          await supabase
+              .from('plv_users')
+              .select('name, alias')
+              .eq('id', user.id)
+              .maybeSingle();
 
-  Future<void> _loadPrototypeAndCounts(String userId) async {
-    // 1) prototipo
-    final proto =
-        await supabase
-            .from('plv_prototypes')
+      final dbName = (profile?['name'] ?? '').toString().trim();
+      final dbAlias = (profile?['alias'] ?? '').toString().trim();
+
+      userName = dbName.isNotEmpty ? dbName : 'Usuario';
+      userAlias = dbAlias;
+
+      final prototype =
+          await supabase
+              .from('plv_prototypes')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+      traitsCount = 0;
+
+      if (prototype != null) {
+        final prototypeId = prototype['id'] as String;
+
+        final traitsRes = await supabase
+            .from('plv_prototype_traits')
             .select('id')
-            .eq('user_id', userId)
-            .maybeSingle();
+            .eq('prototype_id', prototypeId)
+            .count(CountOption.exact);
 
-    if (proto == null) {
-      setState(() {
-        prototypeReady = false;
-        prototypeId = null;
-        traitsCount = 0;
-      });
-    } else {
-      prototypeId = proto['id'] as String;
+        traitsCount = traitsRes.count ?? 0;
+      }
 
-      // 2) traits count
-      final traits = await supabase
-          .from('plv_prototype_traits')
-          .select('id')
-          .eq('prototype_id', prototypeId!)
-          .count(CountOption.exact);
+      final candidatesData = await supabase
+          .from('plv_candidates')
+          .select('id, name, alias, created_at')
+          .eq('user_id', user.id);
 
-      // supabase_flutter devuelve: {data: [...], count: N}
-      final count = traits.count ?? 0;
+      final candidates = List<Map<String, dynamic>>.from(candidatesData);
+      candidatesCount = candidates.length;
 
-      setState(() {
-        traitsCount = count;
-        prototypeReady = count > 0; // listo si tiene rasgos
-      });
+      bestCandidateName = 'Sin datos';
+      bestCandidateScore = 0;
+
+      if (candidates.isNotEmpty) {
+        double bestPercentage = -1;
+        String bestName = 'Sin datos';
+        double bestTotal = 0;
+
+        for (final candidate in candidates) {
+          final scores = await supabase
+              .from('plv_candidate_scores')
+              .select(
+                'id,candidate_id,prototype_trait_id,category,trait_name,weight,is_required,score',
+              )
+              .eq('candidate_id', candidate['id']);
+
+          final rows = List<Map<String, dynamic>>.from(scores);
+          final percentage = CandidateScoreUtils.percentage(rows);
+          final total = CandidateScoreUtils.totalScore(rows);
+
+          if (percentage > bestPercentage) {
+            bestPercentage = percentage;
+            bestTotal = total;
+
+            final name = (candidate['name'] ?? '').toString().trim();
+            final alias = (candidate['alias'] ?? '').toString().trim();
+
+            bestName = alias.isNotEmpty ? '$name ($alias)' : name;
+          }
+        }
+
+        bestCandidateName = bestName;
+        bestCandidateScore = bestTotal;
+      }
+
+      if (!mounted) return;
+      setState(() => loading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el inicio')),
+      );
     }
-
-    // 3) candidatos count
-    final cand = await supabase
-        .from('plv_candidates')
-        .select('id')
-        .eq('user_id', userId)
-        .count(CountOption.exact);
-
-    setState(() {
-      candidatesCount = cand.count ?? 0;
-    });
   }
 
-  Future<void> _loadTopCandidate(String userId) async {
-    // Trae el candidato con mayor compatibility_score
-    // Joins en PostgREST: seleccionamos candidate_id, score, y de plv_candidates traemos name/alias
-    final data = await supabase
-        .from('plv_candidate_results')
-        .select(
-          'compatibility_score, candidate_id, plv_candidates(name, alias)',
-        )
-        .order('compatibility_score', ascending: false)
-        .limit(1);
-
-    if (data.isEmpty) {
-      setState(() => topCandidate = null);
-      return;
-    }
-
-    final row = data.first as Map<String, dynamic>;
-    final candidate = row['plv_candidates'] as Map<String, dynamic>?;
-
-    // Seguridad: solo mostrar si el candidato pertenece al user (por si acaso)
-    if (candidate == null) {
-      setState(() => topCandidate = null);
-      return;
-    }
-
-    setState(() {
-      topCandidate = {
-        'name': candidate['name'],
-        'alias': candidate['alias'],
-        'score': row['compatibility_score'],
-      };
-    });
-  }
-
-  /// ✅ Bloquea Candidatos si no hay prototipo + rasgos
-  Future<bool> _ensurePrototypeReady() async {
-    if (prototypeReady) return true;
-
-    if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Primero crea tu prototipo y agrega rasgos ✍️'),
-      ),
-    );
-
-    // si no hay prototipo -> va a PrototypeScreen que lo crea
-    Navigator.push(
+  Future<void> _goPrototype() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PrototypeScreen()),
     );
-
-    return false;
+    await _loadHome();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+  Future<void> _goCandidates() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CandidatesListScreen()),
+    );
+    await _loadHome();
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Protolove'),
-        centerTitle: true,
-        backgroundColor: const Color.fromARGB(255, 255, 107, 156),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _initHome),
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed:
-                () => AppMessages.success(
-                  context,
-                  'Notificaciones próximamente.',
-                ),
-          ),
-        ],
+  Future<void> _goProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UserProfileScreen()),
+    );
+    await _loadHome();
+  }
+
+  Future<void> _logout() async {
+    await supabase.auth.signOut();
+  }
+
+  Widget _drawerItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color color = AppColors.textPrimary,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: color,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      drawerScrimColor: Colors.black.withOpacity(0.6),
-      drawer: _buildDrawer(context),
-      body: RefreshIndicator(
-        onRefresh: _initHome,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20),
+      onTap: onTap,
+    );
+  }
+
+  Widget _summaryCard(String value, String label) {
+    return Expanded(
+      child: Container(
+        height: 145,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickAction({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Container(
+          height: 175,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'Hola, $userName 👋',
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                prototypeReady
-                    ? 'Tu prototipo está listo. Ahora califica candidatos 💕'
-                    : 'Crea tu prototipo y agrega rasgos para comenzar 💕',
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-
+              Icon(icon, size: 42, color: AppColors.primary),
               const SizedBox(height: 18),
-
-              // Banner si no está listo
-              if (!prototypeReady) _prototypeWarningCard(),
-
-              if (!prototypeReady) const SizedBox(height: 18),
-
-              // Card Prototipo
-              _prototypeCard(context),
-
-              const SizedBox(height: 20),
-
-              // Top Candidate
-              _topCandidateCard(),
-
-              const SizedBox(height: 20),
-
-              // Resumen dinámico
-              const Text(
-                'Resumen',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: _statCard('$traitsCount', 'Rasgos')),
-                  const SizedBox(width: 15),
-                  Expanded(child: _statCard('$candidatesCount', 'Candidatos')),
-                ],
-              ),
-
-              const SizedBox(height: 22),
-
-              // Acciones rápidas
-              const Text(
-                'Acciones rápidas',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _actionCard(
-                      icon: Icons.person,
-                      title: 'Mi Perfil',
-                      onTap:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const UserProfileScreen(),
-                            ),
-                          ),
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: _actionCard(
-                      icon: Icons.people,
-                      title: 'Candidatos',
-                      onTap: () async {
-                        final ok = await _ensurePrototypeReady();
-                        if (!ok) return;
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CandidatesListScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ],
           ),
@@ -319,352 +278,317 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _prototypeWarningCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.orange.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: const [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Aún no tienes rasgos en tu prototipo. Agrégalos para poder crear y calificar candidatos.',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final helloName = userName.trim().isEmpty ? 'Usuario' : userName;
+    final drawerName = helloName;
+    final hasPrototype = traitsCount > 0;
 
-  Widget _prototypeCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.pinkAccent, Colors.orangeAccent],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.pinkAccent.withOpacity(0.25),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Mi Prototipo 💖',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            prototypeReady
-                ? 'Rasgos definidos: $traitsCount'
-                : 'Aún no has definido rasgos.',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 15),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.pinkAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: AppColors.background,
+      drawer: Drawer(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.only(
+                top: 70,
+                left: 20,
+                right: 20,
+                bottom: 24,
               ),
-            ),
-            onPressed:
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PrototypeScreen()),
-                ),
-            child: const Text('Gestionar prototipo'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _topCandidateCard() {
-    final tc = topCandidate;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child:
-          tc == null
-              ? Row(
-                children: const [
-                  Icon(Icons.emoji_events_outlined),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Aún no hay resultados. Califica candidatos y guarda su puntuación global.',
-                      style: TextStyle(color: Colors.black87),
+              decoration: BoxDecoration(gradient: AppColors.primaryGradient),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 46,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 52,
+                      color: AppColors.primary,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    drawerName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (userAlias.trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '@$userAlias',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                  if (userEmail.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      userEmail,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _drawerItem(
+              icon: Icons.home,
+              title: 'Inicio',
+              onTap: () => Navigator.pop(context),
+            ),
+            _drawerItem(
+              icon: Icons.person,
+              title: 'Mi perfil',
+              onTap: () async {
+                Navigator.pop(context);
+                await _goProfile();
+              },
+            ),
+            _drawerItem(
+              icon: Icons.favorite,
+              title: 'Mi Prototipo',
+              onTap: () async {
+                Navigator.pop(context);
+                await _goPrototype();
+              },
+            ),
+            _drawerItem(
+              icon: Icons.groups,
+              title: 'Mis Candidatos',
+              onTap: () async {
+                Navigator.pop(context);
+                await _goCandidates();
+              },
+            ),
+            const Divider(height: 28),
+            _drawerItem(
+              icon: Icons.logout,
+              title: 'Cerrar sesión',
+              color: AppColors.danger,
+              onTap: _logout,
+            ),
+          ],
+        ),
+      ),
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: const Text('Protolove'),
+        centerTitle: true,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadHome),
+          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
+        ],
+      ),
+      body:
+          loading
+              ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
               )
-              : Row(
-                children: [
-                  const Icon(Icons.emoji_events, color: Colors.amber),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Mejor candidato/a',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${tc['name']}${(tc['alias'] == null || (tc['alias'] as String).isEmpty) ? "" : " (${tc['alias']})"}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+              : RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: _loadHome,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Text(
+                      'Hola, $helloName 👋',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      hasPrototype
+                          ? 'Tu prototipo está listo. Ahora califica candidatos 💕'
+                          : 'Aún no has creado tu prototipo.',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.16),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
                           ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mi Prototipo 💖',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Rasgos definidos: $traitsCount',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: 230,
+                            height: 54,
+                            child: ElevatedButton(
+                              onPressed: _goPrototype,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppColors.primary,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: const Text(
+                                'Gestionar prototipo',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.emoji_events,
+                            color: Colors.amber,
+                            size: 34,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Mejor candidato/a',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  bestCandidateName,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${bestCandidateScore.toStringAsFixed(2)} / 10',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    const Text(
+                      'Resumen',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _summaryCard('$traitsCount', 'Rasgos'),
+                        const SizedBox(width: 14),
+                        _summaryCard('$candidatesCount', 'Candidatos'),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    const Text(
+                      'Acciones rápidas',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _quickAction(
+                          icon: Icons.person,
+                          title: 'Mi Perfil',
+                          onTap: _goProfile,
+                        ),
+                        const SizedBox(width: 14),
+                        _quickAction(
+                          icon: Icons.groups,
+                          title: 'Candidatos',
+                          onTap: _goCandidates,
                         ),
                       ],
                     ),
-                  ),
-                  Text(
-                    '${(tc['score'] as num).toStringAsFixed(2)} / 10',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
+                  ],
+                ),
               ),
-    );
-  }
-
-  // Drawer
-  Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      child: Column(
-        children: [
-          _buildDrawerHeader(),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _drawerItem(
-                  icon: Icons.home,
-                  text: 'Inicio',
-                  onTap: () => Navigator.pop(context),
-                ),
-                _drawerItem(
-                  icon: Icons.person,
-                  text: 'Mi perfil',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const UserProfileScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerItem(
-                  icon: Icons.favorite,
-                  text: 'Mi Prototipo',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PrototypeScreen(),
-                      ),
-                    );
-                  },
-                ),
-                _drawerItem(
-                  icon: Icons.people,
-                  text: 'Mis Candidatos',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    final ok = await _ensurePrototypeReady();
-                    if (!ok) return;
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CandidatesListScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 30),
-                _drawerItem(
-                  icon: Icons.logout,
-                  text: 'Cerrar sesión',
-                  color: Colors.red,
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await supabase.auth.signOut();
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => LoginScreen()),
-                      (_) => false,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawerHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 50, bottom: 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.pinkAccent, Colors.orangeAccent],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: Colors.white,
-            backgroundImage:
-                userPhotoUrl != null ? NetworkImage(userPhotoUrl!) : null,
-            child:
-                userPhotoUrl == null
-                    ? const Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.pinkAccent,
-                    )
-                    : null,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            userName,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            userEmail ?? 'Sin correo',
-            style: const TextStyle(fontSize: 14, color: Colors.white70),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _drawerItem({
-    required IconData icon,
-    required String text,
-    required VoidCallback onTap,
-    Color color = Colors.black87,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(
-        text,
-        style: TextStyle(
-          fontSize: 16,
-          color: color,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      onTap: onTap,
-    );
-  }
-
-  Widget _statCard(String number, String label) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            number,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.pinkAccent,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(label, style: const TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionCard({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 30, color: Colors.pinkAccent),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
     );
   }
 }
