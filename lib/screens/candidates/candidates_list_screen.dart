@@ -254,7 +254,9 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              hasIssue ? 'Pendientes: ${issues.join(", ")}' : 'Todo bien',
+              hasIssue
+                  ? 'No cumple con todo: ${issues.join(", ")}'
+                  : 'Cumple con todo',
               style: TextStyle(
                 color: hasIssue ? AppColors.danger : AppColors.primaryDark,
                 fontWeight: FontWeight.w600,
@@ -262,38 +264,60 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          Column(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (_) => CandidateScoreScreen(
-                              candidateId: c['id'] as String,
-                              candidateName: name,
-                            ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => CandidateScoreScreen(
+                                  candidateId: c['id'] as String,
+                                  candidateName: name,
+                                ),
+                          ),
+                        );
+                        await _load();
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Puntuar'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(
+                          color: AppColors.primary.withOpacity(0.25),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                    );
-                    await _load();
-                  },
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Puntuar'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(
-                      color: AppColors.primary.withOpacity(0.25),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _editCandidate(c),
+                      icon: const Icon(Icons.drive_file_rename_outline),
+                      label: const Text('Editar'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryDark,
+                        side: BorderSide(
+                          color: AppColors.primaryDark.withOpacity(0.25),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _deleteCandidate(c['id'] as String, name),
                   icon: const Icon(Icons.delete_outline),
@@ -377,5 +401,89 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                 ),
               ),
     );
+  }
+
+  Future<void> _editCandidate(Map<String, dynamic> candidate) async {
+    final nameCtrl = TextEditingController(
+      text: (candidate['name'] ?? '').toString(),
+    );
+    final aliasCtrl = TextEditingController(
+      text: (candidate['alias'] ?? '').toString(),
+    );
+
+    final saved =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (_) => AlertDialog(
+                title: const Text('Editar candidata'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: aliasCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Alias (opcional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Guardar'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+
+    if (!saved) return;
+
+    final newName = nameCtrl.text.trim();
+    final newAlias = aliasCtrl.text.trim();
+
+    if (newName.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Escribe el nombre')));
+      return;
+    }
+
+    try {
+      await Supabase.instance.client
+          .from('plv_candidates')
+          .update({
+            'name': newName,
+            'alias': newAlias.isEmpty ? null : newAlias,
+          })
+          .eq('id', candidate['id']);
+
+      await _load();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Candidata actualizada')));
+    } on PostgrestException catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No se pudo actualizar')));
+    }
   }
 }
