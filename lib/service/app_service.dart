@@ -8,16 +8,19 @@ class AppService extends ChangeNotifier {
   AppService(this._prefs);
 
   bool _isLogged = false;
+  bool _hasSeenOnboarding = false;
   String _email = '';
   String _password = '';
 
   bool get isLogged => _isLogged;
+  bool get hasSeenOnboarding => _hasSeenOnboarding;
 
   String get email => _email;
   String get password => _password;
 
   Future<void> init() async {
     _isLogged = await _prefs.getIsLogged();
+    _hasSeenOnboarding = await _prefs.getHasSeenOnboarding();
 
     if (_isLogged) {
       getCredentialUser();
@@ -46,6 +49,21 @@ class AppService extends ChangeNotifier {
     _email = emailStr;
     _password = passwordStr;
     await _prefs.setCredentialUser(email, password);
+    notifyListeners();
+  }
+
+  Future<void> completeOnboarding() async {
+    _hasSeenOnboarding = true;
+    await _prefs.setHasSeenOnboarding(true);
+    notifyListeners();
+  }
+
+  Future<void> clearSession() async {
+    _isLogged = false;
+    _email = '';
+    _password = '';
+    await _prefs.setIsLogged(false);
+    await _prefs.clearCredentialUser();
     notifyListeners();
   }
 }

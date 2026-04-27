@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:protolove_iritech/service/app_service.dart';
 import 'package:protolove_iritech/service/service.dart';
 import 'package:protolove_iritech/utils/colors.dart';
 
@@ -41,9 +43,19 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 3500), () {
-      NavigationService().pushReplacementNamed(SignInUpScreen.routeName);
-    });
+    Future.delayed(const Duration(milliseconds: 3500), _goNext);
+  }
+
+  void _goNext() {
+    if (!mounted) return;
+
+    final appService = context.read<AppService>();
+    final nextRoute =
+        appService.hasSeenOnboarding
+            ? SignInUpScreen.routeName
+            : OnboardingScreen.routeName;
+
+    NavigationService().pushReplacementNamed(nextRoute);
   }
 
   @override

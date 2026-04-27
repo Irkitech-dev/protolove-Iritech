@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:protolove_iritech/service/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../utils/app_colors.dart';
@@ -172,7 +174,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _logout() async {
-    await supabase.auth.signOut();
+    if (!mounted) return;
+    await context.read<AuthService>().logout(context);
   }
 
   Widget _drawerItem({

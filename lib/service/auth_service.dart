@@ -123,7 +123,16 @@ class AuthService extends ChangeNotifier {
     await supabase.from('plv_users').upsert({'id': user.id, 'alias': alias});
   }
 
-  Future<void> logout() async {
-    await _supabase.auth.signOut();
+  Future<void> logout(BuildContext context) async {
+    final appService = context.read<AppService>();
+    try {
+      await _supabase.auth.signOut();
+    } finally {
+      await appService.clearSession();
+      NavigationService().pushNamedAndRemoveUntil(
+        SignInUpScreen.routeName,
+        (route) => false,
+      );
+    }
   }
 }

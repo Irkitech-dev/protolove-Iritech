@@ -6,6 +6,7 @@ class AppRoutes {
   static Map<String, WidgetBuilder> getRoutes() {
     return <String, WidgetBuilder>{
       SplashScreen.routeName: (BuildContext context) => const SplashScreen(),
+      OnboardingScreen.routeName: (context) => const OnboardingScreen(),
       LoginScreen.routeName: (context) => const LoginScreen(),
       HomeScreen.routeName: (context) => const HomeScreen(),
       SignInUpScreen.routeName: (context) => SignInUpScreen(),
