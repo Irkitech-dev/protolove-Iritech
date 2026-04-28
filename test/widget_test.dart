@@ -40,6 +40,9 @@ void main() {
       ),
     );
 
+    var prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('has_seen_onboarding'), isNull);
+
     expect(find.text('Define tu prototipo\nde pareja'), findsOneWidget);
     expect(find.text('Continuar'), findsOneWidget);
 
@@ -57,7 +60,7 @@ void main() {
     await tester.tap(find.text('Empezar'));
     await tester.pumpAndSettle();
 
-    final prefs = await SharedPreferences.getInstance();
+    prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('has_seen_onboarding'), isTrue);
     expect(find.text('Destino final'), findsOneWidget);
   });
@@ -94,12 +97,15 @@ void main() {
       ),
     );
 
+    var prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('has_seen_onboarding'), isNull);
+
     expect(find.text('Omitir'), findsOneWidget);
 
     await tester.tap(find.text('Omitir'));
     await tester.pumpAndSettle();
 
-    final prefs = await SharedPreferences.getInstance();
+    prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('has_seen_onboarding'), isTrue);
     expect(find.text('Destino final'), findsOneWidget);
   });
