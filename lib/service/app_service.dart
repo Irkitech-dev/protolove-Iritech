@@ -7,11 +7,13 @@ class AppService extends ChangeNotifier {
 
   AppService(this._prefs);
 
+  bool _isInitialized = false;
   bool _isLogged = false;
   bool _hasSeenOnboarding = false;
   String _email = '';
   String _password = '';
 
+  bool get isInitialized => _isInitialized;
   bool get isLogged => _isLogged;
   bool get hasSeenOnboarding => _hasSeenOnboarding;
 
@@ -26,6 +28,7 @@ class AppService extends ChangeNotifier {
       getCredentialUser();
     }
 
+    _isInitialized = true;
     notifyListeners();
   }
 

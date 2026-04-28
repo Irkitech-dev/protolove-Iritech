@@ -43,13 +43,19 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 3500), _goNext);
+    _waitForInitAndNavigate();
   }
 
-  void _goNext() {
+  Future<void> _waitForInitAndNavigate() async {
+    final appService = context.read<AppService>();
+
+    while (!appService.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    await Future.delayed(const Duration(milliseconds: 1500));
+
     if (!mounted) return;
 
-    final appService = context.read<AppService>();
     final nextRoute =
         appService.hasSeenOnboarding
             ? SignInUpScreen.routeName
