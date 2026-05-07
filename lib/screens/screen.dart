@@ -5,3 +5,5 @@ export 'home/home_screen.dart';
 export 'sign_in_up_screen.dart';
 export 'auth/register_screen.dart';
 export 'auth/register_name_screen.dart';
+export 'terms_screen.dart';
+export 'how_it_works_screen.dart';

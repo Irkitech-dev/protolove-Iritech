@@ -252,8 +252,9 @@ class _RegisterNameScreenState extends State<RegisterNameScreen>
                                       .read<AuthService>()
                                       .createUserProfile(alias);
 
-                                  NavigationService().pushReplacementNamed(
-                                    HomeScreen.routeName,
+                                  NavigationService().pushNamedAndRemoveUntil(
+                                    TermsScreen.routeName,
+                                    (route) => false,
                                   );
                                 } catch (e) {
                                   ScaffoldMessenger.of(context).showSnackBar(

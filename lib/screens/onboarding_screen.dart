@@ -54,11 +54,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'ProtoLove te ayuda a elegir con el corazón... pero también con la cabeza.\n\n'
           'No se trata de juzgar a los demás, sino de saber qué necesitas para ser feliz.',
-      bullets: [
-        'Define lo que buscas',
-        'Evalúa con los pies en la tierra',
-        'Decide con total seguridad',
-      ],
+      bullets: ['Define lo que buscas', 'Evalúa con los pies en la tierra'],
     ),
   ];
 

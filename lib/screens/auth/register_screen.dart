@@ -7,6 +7,7 @@ import '../../service/service.dart';
 
 class RegisterScreen extends StatefulWidget {
   static const String routeName = 'register';
+
   const RegisterScreen({super.key});
 
   @override
@@ -17,6 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
   bool _obscurePassword1 = true;
   bool _obscurePassword2 = true;
 
@@ -39,7 +41,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              /// HEADER
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -47,7 +48,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -58,9 +61,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 30),
 
-              /// EMAIL
               TextField(
                 controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   hintText: 'Correo electrónico',
                   prefixIcon: Icon(Icons.email_outlined),
@@ -71,15 +74,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
-              /// PASSWORD
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword1,
                 decoration: InputDecoration(
                   hintText: 'Contraseña',
-                  prefixIcon: Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword1
@@ -93,22 +96,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   filled: true,
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
-              /// CONFIRM PASSWORD
               TextField(
                 controller: _confirmPasswordController,
                 obscureText: _obscurePassword2,
-                decoration:  InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Confirmar contraseña',
-                  prefixIcon: Icon(Icons.lock_reset_outlined),
-                    suffixIcon: IconButton(
+                  prefixIcon: const Icon(Icons.lock_reset_outlined),
+                  suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword2
                           ? Icons.visibility_off
@@ -121,7 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   filled: true,
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius: BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide.none,
                   ),
@@ -130,16 +133,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 24),
 
-              /// REGISTER BUTTON
               PrimaryButton(
                 text: authService.isLoading ? 'Creando cuenta...' : 'Registrar',
                 onPressed:
                     authService.isLoading
                         ? null
                         : () async {
-                          if (_emailController.text.isEmpty ||
-                              _passwordController.text.isEmpty ||
-                              _confirmPasswordController.text.isEmpty) {
+                          final email = _emailController.text.trim();
+                          final password = _passwordController.text.trim();
+                          final confirmPassword =
+                              _confirmPasswordController.text.trim();
+
+                          if (email.isEmpty ||
+                              password.isEmpty ||
+                              confirmPassword.isEmpty) {
                             AppMessages.info(
                               context,
                               'Completa todos los campos ✍️',
@@ -147,8 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return;
                           }
 
-                          if (_passwordController.text !=
-                              _confirmPasswordController.text) {
+                          if (password != confirmPassword) {
                             AppMessages.error(
                               context,
                               'Las contraseñas no coinciden 🔐',
@@ -156,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return;
                           }
 
-                          if (_passwordController.text.length < 6) {
+                          if (password.length < 6) {
                             AppMessages.info(
                               context,
                               'La contraseña debe tener al menos 6 caracteres 🔒',
@@ -164,15 +170,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return;
                           }
 
-                          await authService.register(
-                            _emailController.text,
-                            _passwordController.text,
-                            context,
-                          );
+                          await authService.register(email, password, context);
                         },
               ),
 
               const SizedBox(height: 20),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -180,8 +183,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     '¿Ya tienes una cuenta? ',
                     style: TextStyle(fontSize: 14),
                   ),
-
-                  /// BACK TO LOGIN
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(
