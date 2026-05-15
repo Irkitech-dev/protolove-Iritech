@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 class PrototypeCategoryUtils {
   static const categories = [
+    'emocional',
     'fisica',
     'intelectual',
-    'emocional',
-    'social',
     'moral',
+    'social',
   ];
 
   static String label(String category) {
